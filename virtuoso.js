@@ -123,7 +123,6 @@
         formatJSON();
     } else if (location.host.match(/-admin/)) { // Admin pages
         mainPopup = createPopup("Virtuoso", true);
-        quickUpdate();
         if (location.pathname == "/admin/users") {
             directoryPeople();
         } else if (location.pathname.match("/admin/user/")) {
@@ -193,7 +192,6 @@
         apiExplorer();
     } else if (location.pathname == "/app/UserHome") { // User home page (non-admin)
         mainPopup = createPopup("Virtuoso", true);
-        quickUpdate();
         userHome();
     //} else if (location.host == "developer.okta.com" && location.pathname.startsWith("/docs/reference/api/")) {
     //    tryAPI();
@@ -201,15 +199,16 @@
 
     function whatsNew() {
         const newsPopup = createPopup("What's New");
+        $(`<h1 style='padding: 5px'>2026-08-25</h1>`).appendTo(newsPopup);
+        $(`<div style='padding: 5px'>` +
+            `• Push App Push Groups (Unofficial): on an app's page, trigger group-push "Push now" for all of its ACTIVE mappings at once.<br/>` +
+            `• Push All Apps Push Groups (Unofficial): on Applications, scan every app for group push and push all ACTIVE mappings across all of them.` +
+        `</div>`).appendTo(newsPopup);
         $(`<h1 style='padding: 5px'>2024-06-11</h1>`).appendTo(newsPopup);
         $(`<div style='padding: 5px'>` +
             `• See Deleted Users, Apps, and Groups.<br/>` +
             `• Restore Deleted Users, Apps, and Groups with Backupta.` +
         `</div>`).appendTo(newsPopup);
-    }
-
-    function quickUpdate() {
-        $(`<a href='https://www.youtube.com/watch?v=mNTThKVjztc&list=PLZ4_Rj_Aw2Ym-NkC8SFB6wuSfBiBto_6C' target='_blank' rel='noopener'>Okta Rockstar overview (upstream YouTube)</a><br><br>`).appendTo(mainPopup);
     }
 
     // Admin functions
@@ -1551,7 +1550,6 @@
                 `<div class=virtuosoButtons>${main ? "<span class=toggleSide> ⇄ </span><span class=minimize> _ </span>" : ""} ` +
                 (main ? `<a class='whatsNew'><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-wclassth="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg></a>` : '') +
                 (main ? `<a class='settings'><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg></a> ` : '') +
-                `<a href='https://github.com/gabrielsroka/gabrielsroka.github.io/tree/master/rockstar' target='_blank' rel='noopener' title='Upstream Okta Rockstar source'>?</a> ` +
                 `<a class=close>X</a></div><br><br></div>`)
             .appendTo(document.body);
         popup.css({position: 'absolute', zIndex: 1000, top: '60px', maxHeight: 'calc(100% - 28px)', maxWidth: 'calc(100% - 28px)', padding: '8px', margin: '4px', overflow: 'auto', backgroundColor: 'white', border: '1px solid #ddd'});
@@ -1561,7 +1559,7 @@
         popup.find('.toggleSide, .minimize').css({padding: '4px'});
         const popupBody = $('<div></div>').appendTo(popup);
         if (main) {
-            $(`<div class=virtuosoWarning><strong>Internal API warning:</strong> Virtuoso is a branch of Okta Rockstar. Internal API features are labeled and can break at any time.</div>`).appendTo(popupBody);
+            $(`<div class=virtuosoWarning><strong>Internal API warning:</strong><br>Virtuoso is a branch of Okta Rockstar.<br>Internal API features are labeled and can break at any time.</div>`).appendTo(popupBody);
         }
         popup.find('.close').click(() => popup.remove());
         if (main) {
