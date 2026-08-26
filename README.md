@@ -27,3 +27,7 @@ pre-commit install
 ```
 
 After changing `virtuoso.js`, reload the extension on `chrome://extensions`, then reload the Okta tab you're testing against.
+
+## Privacy
+
+Okta Virtuoso does not collect or transmit data to its developers. Okta data is processed in your browser and exchanged directly with your signed-in Okta tenant. See the [Privacy Policy](PRIVACY_POLICY.md) for details, including the optional user-configured Backupta integration.
