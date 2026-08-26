@@ -201,8 +201,9 @@
         const newsPopup = createPopup("What's New");
         $(`<h1 style='padding: 5px'>2026-08-25</h1>`).appendTo(newsPopup);
         $(`<div style='padding: 5px'>` +
-            `• Push App Push Groups (Unofficial): on an app's page, trigger group-push "Push now" for all of its ACTIVE mappings at once.<br/>` +
-            `• Push All Apps Push Groups (Unofficial): on Applications, scan every app for group push and push all ACTIVE mappings across all of them.` +
+            `• Delegated admins can export custom user-profile fields.<br/>` +
+            `• Push App Push Groups (Internal API): on an app's page, trigger group-push "Push now" for all of its ACTIVE mappings at once.<br/>` +
+            `• Push All Apps Push Groups (Internal API): on Applications, scan every app for group push and push all ACTIVE mappings across all of them.` +
         `</div>`).appendTo(newsPopup);
         $(`<h1 style='padding: 5px'>2024-06-11</h1>`).appendTo(newsPopup);
         $(`<div style='padding: 5px'>` +
@@ -758,10 +759,24 @@
             exportPopup.append("<br>Columns to export");
             var errorBox = $('<div style="background-color: #ffb;"></div>').appendTo(exportPopup);
             var checkboxDiv = $("<div style='overflow-y: scroll; height: 152px; width: 500px; border: 1px solid #ccc;'></div>").appendTo(exportPopup);
+            var delegatedAdminFallback = false;
+            var profileAttributesLoading = true;
+            const delegatedAdminCustomColumns = new Set();
 
             function addCheckbox(value, text) {
                 const checked = exportColumns.includes(value) ? "checked" : "";
                 checkboxDiv.html(checkboxDiv.html() + `<label><input type=checkbox value='${e(value)}' ${checked}>${e(text)}</label><br>`);
+            }
+            async function getUserDetail(userId) {
+                for (let attempt = 0; attempt < 4; attempt++) {
+                    try {
+                        return await getJSON(`/api/v1/users/${encodeURIComponent(userId)}`);
+                    } catch (jqXHR) {
+                        if (jqXHR.status != 429 || attempt == 3) throw jqXHR;
+                        const reset = Number(jqXHR.getResponseHeader("X-Rate-Limit-Reset")) * 1000;
+                        await sleep(Math.max(1000, reset - Date.now() + 250));
+                    }
+                }
             }
             const user = {
                 id: "User Id",
@@ -781,47 +796,66 @@
             const defaultColumns = "id,status,profile.login,profile.firstName,profile.lastName,profile.email";
             const exportColumns = (localStorage.rockstarExportUserColumns || defaultColumns).replace(/ /g, "").split(",");
             for (const p in user) addCheckbox(p, user[p]);
+            const baseProfile = {
+                login: "Username",
+                firstName: "First name",
+                lastName: "Last name",
+                middleName: "Middle name",
+                honorificPrefix: "Honorific prefix",
+                honorificSuffix: "Honorific suffix",
+                email: "Primary email",
+                title: "Title",
+                displayName: "Display name",
+                nickName: "Nickname",
+                profileUrl: "Profile Url",
+                secondEmail: "Secondary email",
+                mobilePhone: "Mobile phone",
+                primaryPhone: "Primary phone",
+                streetAddress: "Street address",
+                city: "City",
+                state: "State",
+                zipCode: "Zip code",
+                countryCode: "Country code",
+                postalAddress: "Postal Address",
+                preferredLanguage: "Preferred language",
+                locale: "Locale",
+                timezone: "Time zone",
+                userType: "User type",
+                employeeNumber: "Employee number",
+                costCenter: "Cost center",
+                organization: "Organization",
+                division: "Division",
+                department: "Department",
+                managerId: "Manager Id",
+                manager: "Manager"
+            };
+            errorBox.html("Loading profile attributes...");
             getJSON("/api/v1/meta/schemas/user/default").then(schema => {
                 const base = schema.definitions.base.properties;
                 const custom = schema.definitions.custom.properties;
                 for (const p in base) addCheckbox("profile." + p, base[p].title);
                 for (const p in custom) addCheckbox("profile." + p, custom[p].title);
+                profileAttributesLoading = false;
+                errorBox.empty();
             }).fail(() => {
-                const profile = {
-                    login: "Username",
-                    firstName: "First name",
-                    lastName: "Last name",
-                    middleName: "Middle name",
-                    honorificPrefix: "Honorific prefix",
-                    honorificSuffix: "Honorific suffix",
-                    email: "Primary email",
-                    title: "Title",
-                    displayName: "Display name",
-                    nickName: "Nickname",
-                    profileUrl: "Profile Url",
-                    secondEmail: "Secondary email",
-                    mobilePhone: "Mobile phone",
-                    primaryPhone: "Primary phone",
-                    streetAddress: "Street address",
-                    city: "City",
-                    state: "State",
-                    zipCode: "Zip code",
-                    countryCode: "Country code",
-                    postalAddress: "Postal Address",
-                    preferredLanguage: "Preferred language",
-                    locale: "Locale",
-                    timezone: "Time zone",
-                    userType: "User type",
-                    employeeNumber: "Employee number",
-                    costCenter: "Cost center",
-                    organization: "Organization",
-                    division: "Division",
-                    department: "Department",
-                    managerId: "Manager Id",
-                    manager: "Manager"
-                };
-                for (const p in profile) addCheckbox("profile." + p, profile[p]);
-                errorBox.html('Unable to fetch custom attributes. Use an account with more privileges.<br>Only base attributes shown below.');
+                getJSON("/api/v1/user/types/effective").then(userType => {
+                    const schemas = userType._embedded.schemas;
+                    const base = schemas.find(schema => schema.name == "base").schema.properties;
+                    const custom = schemas.find(schema => schema.name == "custom").schema.properties;
+                    for (const p in base) addCheckbox("profile." + p, base[p].title);
+                    for (const p in custom) {
+                        const column = "profile." + p;
+                        addCheckbox(column, custom[p].title);
+                        delegatedAdminCustomColumns.add(column);
+                    }
+                    delegatedAdminFallback = true;
+                    profileAttributesLoading = false;
+                    errorBox.html('<strong>Internal API — may break:</strong> Using the delegated-admin fallback for custom profile fields. Selected custom values will be fetched one user at a time.');
+                }).fail(() => {
+                    for (const p in baseProfile) addCheckbox("profile." + p, baseProfile[p]);
+                    profileAttributesLoading = false;
+                    errorBox.html('Unable to fetch custom attributes with either schema method.<br>Only base attributes shown below.');
+                });
             });
 
             if (filter) {
@@ -841,6 +875,10 @@
             }
             exportPopup.append(`<br><br><div id=error>&nbsp;</div><br>`);
             createDivA("Export", exportPopup, function () {
+                if (profileAttributesLoading) {
+                    $("#error").html("Wait for profile attributes to finish loading.");
+                    return;
+                }
                 var exportHeaders = [];
                 var exportColumns = [];
                 checkboxDiv.find("input:checked").each(function () {
@@ -858,7 +896,12 @@
                         localStorage.rockstarExportUserArgs = exportArgs;
                         localUrl += '?' + exportArgs;
                     }
-                    startExport(o, localUrl, exportHeaders, user => toCSV(...fields(user, exportColumns)));
+                    startExport(o, localUrl, exportHeaders, user => {
+                        const customFieldSelected = delegatedAdminFallback && exportColumns.some(column =>
+                            delegatedAdminCustomColumns.has(column));
+                        if (!customFieldSelected) return toCSV(...fields(user, exportColumns));
+                        return getUserDetail(user.id).then(fullUser => toCSV(...fields(fullUser, exportColumns)));
+                    });
                 } else {
                     $("#error").html("ERROR: Select at least 1 column.");
                 }
@@ -877,16 +920,17 @@
             cancel = false;
             getJSON(url).then(getObjects).fail(failObjects);
         }
-        function getObjects(objects, status, jqXHR) {
-            for (var i = 0; i < objects.length; i++) {
-                var object = objects[i];
-                var line = template(object);
-                if (line.then) {
-                    line.then(ln => lines.push(ln + '\n'));
-                } else {
-                    lines.push(line + '\n');
-                    totalBytes += line.length + 1;
-                }
+        async function getObjects(objects, status, jqXHR) {
+            let pageLines;
+            try {
+                pageLines = await mapLimit(objects, 5, object => Promise.resolve(template(object)));
+            } catch (error) {
+                failObjects(error);
+                return;
+            }
+            for (const line of pageLines) {
+                lines.push(line + '\n');
+                totalBytes += line.length + 1;
             }
             total += objects.length;
             exportPopup.html(total.toLocaleString() + " " + objectType + "...<br>~" + totalBytes.toLocaleString() + ' bytes<br><br>');
@@ -915,21 +959,11 @@
                     getJSON(url).then(getObjects).fail(failObjects);
                 }
             } else {
-                if (total == lines.length) {
-                    downloadCSV(exportPopup, total.toLocaleString() + " " + objectType + " exported, ~" + (totalBytes + header.length).toLocaleString() + ' bytes. ', header, lines, `Export ${objectType}`);
-                } else {
-                    exportPopup.html("Processing..."); // Wait for other fetches to finish.
-                    var intervalID = setInterval(() => {
-                        if (total == lines.length) {
-                            downloadCSV(exportPopup, total.toLocaleString() + " " + objectType + " exported, ~" + (totalBytes + header.length).toLocaleString() + ' bytes. ', header, lines, `Export ${objectType}`);
-                            clearInterval(intervalID);
-                        }
-                    }, 300);
-                }
+                downloadCSV(exportPopup, total.toLocaleString() + " " + objectType + " exported, ~" + (totalBytes + header.length).toLocaleString() + ' bytes. ', header, lines, `Export ${objectType}`);
             }
         }
         function failObjects(jqXHR) {
-            exportPopup.html("<br>Error: " + e(jqXHR.responseJSON.errorSummary));
+            exportPopup.html("<br>Error: " + e(errorMessage(jqXHR)));
         }
         function fields(o, fields) {
             var a = [];
@@ -961,7 +995,7 @@
         }
     }
     function errorMessage(jqXHR) {
-        return jqXHR.responseJSON ? jqXHR.responseJSON.errorSummary : jqXHR.statusText;
+        return jqXHR.responseJSON ? jqXHR.responseJSON.errorSummary : jqXHR.statusText || jqXHR.message || "Request failed.";
     }
     async function mapLimit(items, limit, fn) {
         const results = new Array(items.length);
@@ -1248,11 +1282,6 @@
 
     function settings() {
         const configPopup = createPopup("Configuration");
-
-        $(`<div class="infobox clearfix infobox-info">` +
-            `<span class="icon info-16"></span>` +
-            `<div>If you want to know more about Backupta, <a href="https://www.backupta.com/#how-to-buy" target=_blank>contact us</a>.</div>` +
-        `</div>`).appendTo(configPopup);
 
         $(`<div style='padding: 20px 5px 5px 5px'>Tenant id: ${getBackuptaTenantId()}</div>`).appendTo(configPopup);
 
