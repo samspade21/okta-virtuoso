@@ -201,6 +201,7 @@
         const newsPopup = createPopup("What's New");
         $(`<h1 style='padding: 5px'>2026-08-25</h1>`).appendTo(newsPopup);
         $(`<div style='padding: 5px'>` +
+            `• User and custom group-member exports select all fields by default. Deselections are remembered, and new fields are selected automatically.<br/>` +
             `• Delegated admins can export custom user-profile fields.<br/>` +
             `• Push App Push Groups (Internal API): on an app's page, trigger group-push "Push now" for all of its ACTIVE mappings at once.<br/>` +
             `• Push All Apps Push Groups (Internal API): on Applications, scan every app for group push and push all ACTIVE mappings across all of them.` +
