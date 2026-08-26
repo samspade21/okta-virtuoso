@@ -762,14 +762,34 @@
             var delegatedAdminFallback = false;
             var profileAttributesLoading = true;
             const delegatedAdminCustomColumns = new Set();
+            const excludedColumnsKey = "virtuosoExportUserExcludedColumns";
+            const storedExcludedColumns = localStorage.getItem(excludedColumnsKey);
+            const excludedColumns = new Set(storedExcludedColumns ? storedExcludedColumns.split(",") : []);
+            const storedLegacySelectedColumns = localStorage.getItem("rockstarExportUserColumns");
+            const legacySelectedColumns = storedExcludedColumns == null && storedLegacySelectedColumns != null
+                ? new Set(storedLegacySelectedColumns.replace(/ /g, "").split(",").filter(Boolean))
+                : null;
 
             function addCheckbox(value, text) {
-                const checked = exportColumns.includes(value) ? "checked" : "";
+                const selected = storedExcludedColumns != null
+                    ? !excludedColumns.has(value)
+                    : legacySelectedColumns == null || legacySelectedColumns.has(value);
+                const checked = selected ? "checked" : "";
                 checkboxDiv.html(checkboxDiv.html() + `<label><input type=checkbox value='${e(value)}' ${checked}>${e(text)}</label><br>`);
+            }
+            function finishProfileAttributesLoading() {
+                if (storedExcludedColumns == null && legacySelectedColumns != null) {
+                    const migratedExcludedColumns = [];
+                    checkboxDiv.find("input:not(:checked)").each(function () {
+                        migratedExcludedColumns.push(this.value);
+                    });
+                    localStorage.setItem(excludedColumnsKey, migratedExcludedColumns.join(","));
+                }
+                profileAttributesLoading = false;
             }
             function showBaseProfileOnly(error) {
                 for (const p in baseProfile) addCheckbox("profile." + p, baseProfile[p]);
-                profileAttributesLoading = false;
+                finishProfileAttributesLoading();
                 const detail = error ? ` (${e(errorMessage(error))})` : "";
                 errorBox.html(`Unable to fetch custom attributes with either schema method${detail}.<br>Only base attributes shown below.`);
             }
@@ -793,7 +813,7 @@
                                 delegatedAdminCustomColumns.add(column);
                             }
                             delegatedAdminFallback = true;
-                            profileAttributesLoading = false;
+                            finishProfileAttributesLoading();
                             const bulkValues = new URL(url, location.origin).pathname == "/api/v1/users";
                             errorBox.html('<strong>Internal API — may break:</strong><br>Using the delegated-admin fallback for custom profile fields.<br>' +
                                 (bulkValues ? 'Selected custom values will be requested in bulk.' : 'Missing custom values may be fetched one user at a time.'));
@@ -834,8 +854,6 @@
                 "credentials.provider.type": "Credential Provider Type",
                 "credentials.provider.name": "Credential Provider Name"
             };
-            const defaultColumns = "id,status,profile.login,profile.firstName,profile.lastName,profile.email";
-            const exportColumns = (localStorage.rockstarExportUserColumns || defaultColumns).replace(/ /g, "").split(",");
             for (const p in user) addCheckbox(p, user[p]);
             const baseProfile = {
                 login: "Username",
@@ -876,7 +894,7 @@
                 const custom = schema.definitions.custom.properties;
                 for (const p in base) addCheckbox("profile." + p, base[p].title);
                 for (const p in custom) addCheckbox("profile." + p, custom[p].title);
-                profileAttributesLoading = false;
+                finishProfileAttributesLoading();
                 errorBox.empty();
             }).fail(() => {
                 loadDelegatedAdminSchema();
@@ -912,6 +930,12 @@
                 if (exportHeaders.length) {
                     $("#error").html("&nbsp;");
                     exportHeaders = exportHeaders.join(",");
+                    const excludedColumnsToSave = [];
+                    checkboxDiv.find("input:not(:checked)").each(function () {
+                        excludedColumnsToSave.push(this.value);
+                    });
+                    localStorage.setItem(excludedColumnsKey, excludedColumnsToSave.join(","));
+                    // Keep the legacy selected-column setting current for downgrade compatibility.
                     localStorage.rockstarExportUserColumns = exportColumns.join(",");
                     var localUrl = url; // Don't modify url!
                     if (filter) {
