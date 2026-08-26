@@ -26,4 +26,4 @@ pip install pre-commit    # or: brew install pre-commit
 pre-commit install
 ```
 
-After changing `rockstar.js`, reload the extension on `chrome://extensions`, then reload the Okta tab you're testing against.
+After changing `virtuoso.js`, reload the extension on `chrome://extensions`, then reload the Okta tab you're testing against.
