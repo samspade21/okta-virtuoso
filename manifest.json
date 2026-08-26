@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Okta Virtuoso",
-  "version": "3.5",
+  "version": "3.6",
   "description": "Okta admin productivity tools, branched from Okta Rockstar. Internal API features are labeled and may break.",
   "omnibox": {
     "keyword": "virtuoso"
