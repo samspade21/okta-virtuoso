@@ -767,14 +767,55 @@
                 const checked = exportColumns.includes(value) ? "checked" : "";
                 checkboxDiv.html(checkboxDiv.html() + `<label><input type=checkbox value='${e(value)}' ${checked}>${e(text)}</label><br>`);
             }
+            function showBaseProfileOnly(error) {
+                for (const p in baseProfile) addCheckbox("profile." + p, baseProfile[p]);
+                profileAttributesLoading = false;
+                const detail = error ? ` (${e(errorMessage(error))})` : "";
+                errorBox.html(`Unable to fetch custom attributes with either schema method${detail}.<br>Only base attributes shown below.`);
+            }
+            function loadDelegatedAdminSchema() {
+                const sampleUrl = url + (url.includes("?") ? "&" : "?") + "limit=1";
+                getJSON(sampleUrl).then(users => {
+                    if (!users.length) {
+                        showBaseProfileOnly({statusText: "No visible users available for schema discovery"});
+                        return;
+                    }
+                    const userId = encodeURIComponent(users[0].id);
+                    getJSON(`/api/v1/user/types/effective?userId=${userId}&expand=schema`).then(userType => {
+                        try {
+                            const schemas = userType._embedded.schemas;
+                            const base = schemas.find(schema => schema.name == "base").schema.properties;
+                            const custom = schemas.find(schema => schema.name == "custom").schema.properties;
+                            for (const p in base) addCheckbox("profile." + p, base[p].title);
+                            for (const p in custom) {
+                                const column = "profile." + p;
+                                addCheckbox(column, custom[p].title);
+                                delegatedAdminCustomColumns.add(column);
+                            }
+                            delegatedAdminFallback = true;
+                            profileAttributesLoading = false;
+                            const bulkValues = new URL(url, location.origin).pathname == "/api/v1/users";
+                            errorBox.html('<strong>Internal API — may break:</strong><br>Using the delegated-admin fallback for custom profile fields.<br>' +
+                                (bulkValues ? 'Selected custom values will be requested in bulk.' : 'Missing custom values may be fetched one user at a time.'));
+                        } catch (error) {
+                            showBaseProfileOnly(error);
+                        }
+                    }).fail(showBaseProfileOnly);
+                }).fail(showBaseProfileOnly);
+            }
             async function getUserDetail(userId) {
+                const optimizedHeaders = Object.assign({}, headers, {
+                    "Content-Type": 'application/json; okta-response="omitCredentials,omitCredentialsLinks,omitTransitioningToStatus"'
+                });
                 for (let attempt = 0; attempt < 4; attempt++) {
                     try {
-                        return await getJSON(`/api/v1/users/${encodeURIComponent(userId)}`);
-                    } catch (jqXHR) {
-                        if (jqXHR.status != 429 || attempt == 3) throw jqXHR;
-                        const reset = Number(jqXHR.getResponseHeader("X-Rate-Limit-Reset")) * 1000;
-                        await sleep(Math.max(1000, reset - Date.now() + 250));
+                        return (await fetchExportJSON(`/api/v1/users/${encodeURIComponent(userId)}`, optimizedHeaders)).data;
+                    } catch (error) {
+                        if (error.status != 429 || attempt == 3) throw error;
+                        const reset = Number(error.getResponseHeader("X-Rate-Limit-Reset")) * 1000;
+                        const wait = Math.max(1000, reset - Date.now() + 250);
+                        exportPopup.html(`Okta rate limit reached.<br>Retrying in ${Math.ceil(wait / 1000)} seconds...`);
+                        await sleep(wait);
                     }
                 }
             }
@@ -838,24 +879,7 @@
                 profileAttributesLoading = false;
                 errorBox.empty();
             }).fail(() => {
-                getJSON("/api/v1/user/types/effective").then(userType => {
-                    const schemas = userType._embedded.schemas;
-                    const base = schemas.find(schema => schema.name == "base").schema.properties;
-                    const custom = schemas.find(schema => schema.name == "custom").schema.properties;
-                    for (const p in base) addCheckbox("profile." + p, base[p].title);
-                    for (const p in custom) {
-                        const column = "profile." + p;
-                        addCheckbox(column, custom[p].title);
-                        delegatedAdminCustomColumns.add(column);
-                    }
-                    delegatedAdminFallback = true;
-                    profileAttributesLoading = false;
-                    errorBox.html('<strong>Internal API — may break:</strong> Using the delegated-admin fallback for custom profile fields. Selected custom values will be fetched one user at a time.');
-                }).fail(() => {
-                    for (const p in baseProfile) addCheckbox("profile." + p, baseProfile[p]);
-                    profileAttributesLoading = false;
-                    errorBox.html('Unable to fetch custom attributes with either schema method.<br>Only base attributes shown below.');
-                });
+                loadDelegatedAdminSchema();
             });
 
             if (filter) {
@@ -896,12 +920,34 @@
                         localStorage.rockstarExportUserArgs = exportArgs;
                         localUrl += '?' + exportArgs;
                     }
-                    startExport(o, localUrl, exportHeaders, user => {
-                        const customFieldSelected = delegatedAdminFallback && exportColumns.some(column =>
-                            delegatedAdminCustomColumns.has(column));
-                        if (!customFieldSelected) return toCSV(...fields(user, exportColumns));
+                    const parsedUrl = new URL(localUrl, location.origin);
+                    if (parsedUrl.pathname.match(/^\/api\/v1\/groups\/[^/]+\/users$/)) {
+                        parsedUrl.searchParams.set("limit", "200");
+                        localUrl = parsedUrl.pathname + parsedUrl.search;
+                    }
+                    const selectedCustomColumns = exportColumns.filter(column => delegatedAdminCustomColumns.has(column));
+                    let customVisibilityChecked = !delegatedAdminFallback || !selectedCustomColumns.length;
+                    let hydrateCustomProfiles = false;
+                    const userTemplate = user => {
+                        const missingCustomField = hydrateCustomProfiles && selectedCustomColumns.some(column =>
+                            delegatedAdminCustomColumns.has(column) &&
+                            !Object.prototype.hasOwnProperty.call(user.profile || {}, column.slice("profile.".length)));
+                        if (!missingCustomField) return toCSV(...fields(user, exportColumns));
                         return getUserDetail(user.id).then(fullUser => toCSV(...fields(fullUser, exportColumns)));
-                    });
+                    };
+                    userTemplate.prepare = async users => {
+                        if (customVisibilityChecked || !users.length) return;
+                        exportPopup.html("Checking custom profile access...");
+                        const collectionUser = users[0];
+                        const detailUser = await getUserDetail(collectionUser.id);
+                        hydrateCustomProfiles = [...delegatedAdminCustomColumns].some(column => {
+                            const property = column.slice("profile.".length);
+                            return Object.prototype.hasOwnProperty.call(detailUser.profile || {}, property) &&
+                                !Object.prototype.hasOwnProperty.call(collectionUser.profile || {}, property);
+                        });
+                        customVisibilityChecked = true;
+                    };
+                    startExport(o, localUrl, exportHeaders, userTemplate);
                 } else {
                     $("#error").html("ERROR: Select at least 1 column.");
                 }
@@ -912,18 +958,72 @@
             totalBytes = 0;
             objectType = title;
             exportPopup = createPopup(title);
-            exportPopup.html("Loading ...");
+            exportPopup.html(`Loading ${e(title)} list...`);
             template = templateCallback;
             header = headerRow;
             _expand = expand;
             lines = [];
             cancel = false;
-            getJSON(url).then(getObjects).fail(failObjects);
+            loadExportPage(url);
+        }
+        async function fetchExportJSON(url, requestHeaders) {
+            const controller = new AbortController();
+            const timeoutID = setTimeout(() => controller.abort(), 30000);
+            try {
+                const response = await fetch(location.origin + url, {
+                    credentials: "same-origin",
+                    cache: "no-store",
+                    signal: controller.signal,
+                    headers: Object.assign({
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }, requestHeaders || headers)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    const requestError = new Error(data.errorSummary || response.statusText || "Request failed");
+                    Object.assign(requestError, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        responseJSON: data,
+                        getResponseHeader: name => response.headers.get(name)
+                    });
+                    throw requestError;
+                }
+                return {data, responseHeaders: response.headers};
+            } catch (error) {
+                if (error.name == "AbortError") {
+                    const timeoutError = new Error("Request timed out after 30 seconds");
+                    timeoutError.statusText = timeoutError.message;
+                    throw timeoutError;
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeoutID);
+            }
+        }
+        async function loadExportPage(url) {
+            try {
+                const {data, responseHeaders} = await fetchExportJSON(url);
+                await getObjects(data, "success", {getResponseHeader: name => responseHeaders.get(name)});
+            } catch (error) {
+                failObjects(error);
+            }
         }
         async function getObjects(objects, status, jqXHR) {
             let pageLines;
+            let processed = 0;
+            const updateProgress = () => exportPopup.html(
+                `Processing ${objectType}...<br>${(total + processed).toLocaleString()} processed<br>${processed.toLocaleString()} / ${objects.length.toLocaleString()} on this page`);
+            updateProgress();
             try {
-                pageLines = await mapLimit(objects, 5, object => Promise.resolve(template(object)));
+                if (template.prepare) await template.prepare(objects);
+                pageLines = await mapLimit(objects, 5, async object => {
+                    const line = await Promise.resolve(template(object));
+                    processed++;
+                    updateProgress();
+                    return line;
+                });
             } catch (error) {
                 failObjects(error);
                 return;
@@ -952,11 +1052,11 @@
                         exportPopup.html(exportPopup.html() + "<br>Sleeping...");
                         if ((new Date()).getTime() / 1000 > jqXHR.getResponseHeader("X-Rate-Limit-Reset")) {
                             clearInterval(intervalID);
-                            getJSON(url).then(getObjects).fail(failObjects);
+                            loadExportPage(url);
                         }
                     }, 1000);
                 } else {
-                    getJSON(url).then(getObjects).fail(failObjects);
+                    loadExportPage(url);
                 }
             } else {
                 downloadCSV(exportPopup, total.toLocaleString() + " " + objectType + " exported, ~" + (totalBytes + header.length).toLocaleString() + ' bytes. ', header, lines, `Export ${objectType}`);
@@ -995,7 +1095,9 @@
         }
     }
     function errorMessage(jqXHR) {
-        return jqXHR.responseJSON ? jqXHR.responseJSON.errorSummary : jqXHR.statusText || jqXHR.message || "Request failed.";
+        if (!jqXHR) return "Request failed";
+        const message = jqXHR.responseJSON ? jqXHR.responseJSON.errorSummary : jqXHR.statusText || jqXHR.message || "Request failed";
+        return jqXHR.status ? `HTTP ${jqXHR.status}: ${message}` : message;
     }
     async function mapLimit(items, limit, fn) {
         const results = new Array(items.length);
