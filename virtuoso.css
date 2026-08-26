@@ -45,4 +45,14 @@
   border: 1px solid #d6a700;
   margin-bottom: 8px;
   padding: 8px;
+  padding-right: 24px;
+  position: relative;
+}
+
+.virtuosoWarningClose {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  cursor: pointer;
+  font-weight: bold;
 }

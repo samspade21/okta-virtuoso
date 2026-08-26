@@ -1558,8 +1558,14 @@
         popup.find('.virtuosoButtons').css({display: 'block', float: 'right'});
         popup.find('.toggleSide, .minimize').css({padding: '4px'});
         const popupBody = $('<div></div>').appendTo(popup);
-        if (main) {
-            $(`<div class=virtuosoWarning><strong>Internal API warning:</strong><br>Virtuoso is a branch of Okta Rockstar.<br>Internal API features are labeled and can break at any time.</div>`).appendTo(popupBody);
+        if (main && !localStorage.virtuosoWarningDismissed) {
+            const warning = $(`<div class=virtuosoWarning><a class=virtuosoWarningClose>X</a>` +
+                `<strong>Internal API warning:</strong><br>Virtuoso is a branch of Okta Rockstar.<br>Internal API features are labeled and can break at any time.</div>`)
+                .appendTo(popupBody);
+            warning.find('.virtuosoWarningClose').click(() => {
+                warning.remove();
+                localStorage.virtuosoWarningDismissed = 'true';
+            });
         }
         popup.find('.close').click(() => popup.remove());
         if (main) {
