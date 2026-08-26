@@ -8,7 +8,7 @@ This project is a branch of [**Okta Rockstar**](https://github.com/gabrielsroka/
 
 ### How this fork differs
 
-Where upstream Okta Rockstar sticks to Okta's public, documented APIs, Virtuoso also calls internal/undocumented admin-console APIs where a feature has no public equivalent. These currently include `/api/internal/*` for group-push "Push now" and `/api/v1/user/types/effective?userId={id}&expand=schema` so delegated admins can discover custom user-profile fields. Every feature that uses one is explicitly labeled in the UI. These endpoints can break at any time.
+Where upstream Okta Rockstar sticks to Okta's public, documented APIs, Virtuoso also calls internal/undocumented admin-console APIs where a feature has no public equivalent. Every feature that uses one is explicitly labeled in the UI. These endpoints can break at any time.
 
 ## Install as an unpacked extension
 
