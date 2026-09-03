@@ -1,0 +1,25 @@
+---
+include:
+  - project: 'dataminr-internal/gitlab-ci-confluence-documentation'
+    file: gitlab-ci/confluence-docs.yml
+    ref: main
+
+variables:
+  CONFLUENCE_DOCS_PATH: "."
+
+# This repo has no other CI jobs, and the docs job normally runs in `.post`. GitLab
+# creates no pipeline at all when every job is in `.pre`/`.post`, so this needs an
+# explicit stage. It also has no dedicated docs/ folder, so the changed-paths rule
+# from the tooling (which filters on $CONFLUENCE_DOCS_PATH) is replaced here since
+# "." would match everything.
+confluence-docs:
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: true
+
+# Preview the page tree a merge request would produce. No credentials needed.
+confluence-docs-preview:
+  extends: .confluence-docs-preview
