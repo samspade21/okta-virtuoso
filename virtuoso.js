@@ -355,7 +355,7 @@
                     }
                     verifyPopup.html("");
                     const verifyForm = verifyPopup[0].appendChild(document.createElement("form")); // Cuz "<form>" didn't work.
-                    verifyForm.innerHTML = factor.name + '<br><div id=error></div>' + factor.html + ` <br><input id=answer type=${factor.inputType} autocomplete=off><br>` +
+                    verifyForm.innerHTML = e(factor.name) + '<br><div id=error></div>' + factor.html + ` <br><input id=answer type=${factor.inputType} autocomplete=off><br>` +
                         "<button class='link-button'>Verify</button>";
                     const error = document.getElementById('error');
                     const answer = document.getElementById('answer');
@@ -460,7 +460,7 @@
 
                 const rows = await Promise.all(links.map(async link => {
                     const user = await getJson(new URL(link._links.self.href).pathname);
-                    return `${user.profile.firstName} ${user.profile.lastName} (${user.profile.email})`.link(`/admin/user/profile/view/${user.id}`);
+                    return e(`${user.profile.firstName} ${user.profile.lastName} (${user.profile.email})`).link(`/admin/user/profile/view/${user.id}`);
                 }));
                 div.innerHTML = e(lo.title) + '<br>' + (rows.length ? rows.sort().join('<br>') : '(none)') + '<br><br>';
             }
@@ -1655,7 +1655,7 @@
         return "<pre>" + s.replace(/"id": "(.*)"/g, (match, id) => id.startsWith('<') ? match : `"id": "<a href="${url}${addId ? '/' + id: ''}">${id}</a>"`) + "</pre>";
     }
     function linkify(s) {
-        return s.replace(/"(https?.*)"/g, '"<a href="$1">$1</a>"');
+        return s.replace(/"(https?[^"<>\\]*)"/g, '"<a href="$1">$1</a>"');
     }
     /*
     // This doesn't seem to work since the new dev site went up.
