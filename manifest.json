@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Okta Virtuoso",
-  "version": "3.6.1",
+  "version": "3.6.2",
   "description": "Okta admin productivity tools, branched from Okta Rockstar. Internal API features are labeled and may break.",
   "omnibox": {
     "keyword": "virtuoso"
@@ -27,7 +27,7 @@
         "https://*.okta-gov.com/*",
         "https://*.okta.mil/*"
       ],
-      "js": ["jquery-1.12.4.min.PATCHED.js", "virtuoso.js"],
+      "js": ["jquery-4.0.0.min.js", "virtuoso.js"],
       "css": ["virtuoso.css"]
     }
   ]
